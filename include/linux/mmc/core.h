@@ -196,7 +196,7 @@ extern void mmc_put_card(struct mmc_card *card);
 extern int mmc_flush_cache(struct mmc_card *);
 
 extern int mmc_detect_card_removed(struct mmc_host *host);
-extern int mmc_send_tuning(struct mmc_card *card);
+extern int mmc_send_tuning(struct mmc_host *host);
 
 /**
  *	mmc_claim_host - exclusively claim a host
