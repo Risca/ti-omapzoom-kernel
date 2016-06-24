@@ -323,34 +323,9 @@ struct omap_mmc_of_data {
 	u8 controller_flags;
 };
 
+static inline int omap_hsmmc_set_dll(struct omap_hsmmc_host *host, int count);
+
 static void omap_hsmmc_disable_tuning(struct omap_hsmmc_host *host);
-
-static inline int omap_hsmmc_set_dll(struct omap_hsmmc_host *host, int count)
-{
-	int i;
-	u32 dll;
-	unsigned int retries = 1000;
-
-	dll = OMAP_HSMMC_READ(host->base, DLL);
-	dll &= ~(DLL_FORCE_SR_C_MASK);
-	dll &= ~DLL_CALIB;
-	dll |= (count << DLL_FORCE_SR_C_SHIFT);
-	dll |= DLL_FORCE_VALUE;
-	OMAP_HSMMC_WRITE(host->base, DLL, dll);
-
-	dll |= DLL_CALIB;
-	OMAP_HSMMC_WRITE(host->base, DLL, dll);
-	for (i = 0; i < retries; i++) {
-		if (OMAP_HSMMC_READ(host->base, DLL) & DLL_CALIB)
-			break;
-		usleep_range(10, 20);
-	}
-	dll &= ~DLL_CALIB;
-	OMAP_HSMMC_WRITE(host->base, DLL, dll);
-	dll = OMAP_HSMMC_READ(host->base, DLL);
-
-	return 0;
-}
 
 static void omap_hsmmc_start_dma_transfer(struct omap_hsmmc_host *host);
 
@@ -687,7 +662,8 @@ static void omap_hsmmc_stop_clock(struct omap_hsmmc_host *host)
 static void omap_hsmmc_enable_irq(struct omap_hsmmc_host *host,
 				  struct mmc_command *cmd)
 {
-	unsigned int irq_mask;
+	unsigned int irq_mask = INT_EN_MASK;
+	unsigned long flags;
 
 	if (cmd && ((cmd->opcode == MMC_SEND_TUNING_BLOCK) ||
 	    (cmd->opcode == MMC_SEND_TUNING_BLOCK_HS200)))
@@ -697,10 +673,9 @@ static void omap_hsmmc_enable_irq(struct omap_hsmmc_host *host,
 		 * during the tuning procedure. So disable it during the
 		 * tuning procedure.
 		 */
-		irq_mask = (INT_EN_MASK | BRR_EN) & ~DCRC_EN;
-	else
-		/* BRR and BWR need not be enabled for DMA */
-		irq_mask = INT_EN_MASK & ~(BRR_EN | BWR_EN);
+		irq_mask &=  ~DCRC_EN;
+
+	irq_mask &= ~(BRR_EN | BWR_EN);
 
 	/* Disable timeout for erases or when using software timeout */
 	if (cmd && (cmd->opcode == MMC_ERASE || host->data_timeout))
@@ -709,16 +684,22 @@ static void omap_hsmmc_enable_irq(struct omap_hsmmc_host *host,
 	if (host->flags & CLKEXTFREE_ENABLED)
 		irq_mask |= CIRQ_EN;
 
+	spin_lock_irqsave(&host->irq_lock, flags);
 	OMAP_HSMMC_WRITE(host->base, STAT, STAT_CLEAR);
 	OMAP_HSMMC_WRITE(host->base, ISE, irq_mask);
 	OMAP_HSMMC_WRITE(host->base, IE, irq_mask);
+	spin_unlock_irqrestore(&host->irq_lock, flags);
 }
 
 static void omap_hsmmc_disable_irq(struct omap_hsmmc_host *host)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&host->irq_lock, flags);
 	OMAP_HSMMC_WRITE(host->base, ISE, 0);
 	OMAP_HSMMC_WRITE(host->base, IE, 0);
 	OMAP_HSMMC_WRITE(host->base, STAT, STAT_CLEAR);
+	spin_unlock_irqrestore(&host->irq_lock, flags);
 }
 
 /* Calculate divisor for the given clock frequency */
@@ -2234,6 +2215,32 @@ static int omap_hsmmc_disable_fclk(struct mmc_host *mmc)
 	pm_runtime_put_autosuspend(host->dev);
 
 	return 0;
+}
+
+static inline int omap_hsmmc_set_dll(struct omap_hsmmc_host *host, int count)
+{
+	int i, ret = 0;
+	u32 dll;
+
+	dll = OMAP_HSMMC_READ(host->base, DLL);
+	dll |= DLL_FORCE_VALUE;
+	dll &= ~DLL_FORCE_SR_C_MASK;
+	dll |= (count << DLL_FORCE_SR_C_SHIFT);
+	OMAP_HSMMC_WRITE(host->base, DLL, dll);
+
+	dll |= DLL_CALIB;
+	OMAP_HSMMC_WRITE(host->base, DLL, dll);
+	for (i = 0; i < 1000; i++) {
+		if (OMAP_HSMMC_READ(host->base, DLL) & DLL_CALIB)
+			break;
+	}
+
+	dll &= ~DLL_CALIB;
+	OMAP_HSMMC_WRITE(host->base, DLL, dll);
+
+	if (i == 1000)
+		ret = -ETIMEDOUT;
+	return ret;
 }
 
 static void omap_hsmmc_disable_tuning(struct omap_hsmmc_host *host)
