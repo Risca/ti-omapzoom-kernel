@@ -1233,9 +1233,6 @@ omap_hsmmc_cmd_done(struct omap_hsmmc_host *host, struct mmc_command *cmd)
 		return;
 	}
 
-	if (host->cmd->opcode == MMC_SEND_TUNING_BLOCK)
-		return;
-
 	host->cmd = NULL;
 
 	if (cmd->flags & MMC_RSP_PRESENT) {
