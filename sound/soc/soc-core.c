@@ -1871,7 +1871,7 @@ static int snd_soc_instantiate_card(struct snd_soc_card *card)
 
 	/* resolve codec configuration */
 	for (i = 0; i < card->num_configs; i++) {
-		snd_soc_init_codec_conf(card, i);
+		ret = snd_soc_init_codec_conf(card, i);
 		if (ret)
 			goto base_error;
 	}
