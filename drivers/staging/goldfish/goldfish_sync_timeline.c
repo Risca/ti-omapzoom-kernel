@@ -127,7 +127,7 @@ struct goldfish_sync_guestcmd {
 	uint64_t guest_timeline_handle;
 };
 
-#define GOLDFISH_SYNC_MAX_CMDS 64
+#define GOLDFISH_SYNC_MAX_CMDS 32
 
 struct goldfish_sync_state {
 	char __iomem *reg_base;
@@ -323,7 +323,6 @@ goldfish_sync_fence_create(struct goldfish_sync_timeline_obj *obj,
 	return fd;
 
 err_cleanup_fd_pt:
-	fput(sync_file_obj->file);
 	put_unused_fd(fd);
 err_cleanup_pt:
 	fence_put(&syncpt->base);
