@@ -66,6 +66,14 @@
 		stdout-path = &uart1;
 	};
 
+	evm_1v8_sw: fixedregulator-evm_1v8 {
+		compatible = "regulator-fixed";
+		regulator-name = "evm_1v8";
+		vin-supply = <&smps9_reg>;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+	};
+
 	evm_3v3_sd: fixedregulator-sd {
 		compatible = "regulator-fixed";
 		regulator-name = "evm_3v3_sd";
@@ -251,6 +259,12 @@
 				};
 			};
 		};
+	};
+
+	clk_ov10633_fixed: clk_ov10633_fixed {
+		#clock-cells = <0>;
+		compatible = "fixed-clock";
+		clock-frequency = <24000000>;
 	};
 };
 
@@ -947,6 +961,9 @@
 		compatible = "ovti,ov10633";
 		reg = <0x37>;
 
+		clocks = <&clk_ov10633_fixed>;
+		clock-names = "xvclk";
+
 		mux-gpios = <&pcf_hdmi 3 GPIO_ACTIVE_LOW>; /* CAM_FPD_MUX_S0 */
 		port {
 			onboardLI: endpoint {
@@ -1010,7 +1027,7 @@
 
 &mmc2 {
 	status = "okay";
-	vmmc-supply = <&evm_3v3_sw>;
+	vmmc-supply = <&evm_1v8_sw>;
 	bus-width = <8>;
 	pinctrl-names = "default", "hs", "ddr_1_8v-rev11", "ddr_1_8v", "hs200_1_8v-rev11", "hs200_1_8v";
 	pinctrl-0 = <&mmc2_pins_default>;
