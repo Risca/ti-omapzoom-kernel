@@ -248,6 +248,15 @@ static struct vip_fmt vip_formats[VIP_MAX_ACTIVE_FMT] = {
 		.vpdma_fmt	= { &vpdma_raw_fmts[VPDMA_DATA_FMT_RAW8],
 				  },
 	},
+	{
+		/* V4L2 currently only defines one 16 bit variant */
+		.fourcc		= V4L2_PIX_FMT_SBGGR16,
+		.code		= MEDIA_BUS_FMT_SBGGR16_1X16,
+		.colorspace	= V4L2_COLORSPACE_SMPTE170M,
+		.coplanar	= 0,
+		.vpdma_fmt	= { &vpdma_raw_fmts[VPDMA_DATA_FMT_RAW16],
+				  },
+	},
 };
 
 /*  Print Four-character-code (FOURCC) */
@@ -2182,7 +2191,7 @@ static void set_fmt_params(struct vip_stream *stream)
 		/* We are done */
 		return;
 	} else if (vip_is_fmt_rgb(port->fmt->fourcc)) {
-		port->flags |= FLAG_MULT_PORT;
+		port->flags &= ~FLAG_MULT_PORT;
 		/* Set alpha component in background color */
 		vpdma_set_bg_color(dev->shared->vpdma,
 				   (struct vpdma_data_format *)
