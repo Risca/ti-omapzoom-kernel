@@ -2515,18 +2515,20 @@ static int dispc_ovl_setup_common(enum omap_plane_id plane,
 	out_width = out_width == 0 ? width : out_width;
 	out_height = out_height == 0 ? height : out_height;
 
-	if (ilace && height == out_height)
-		fieldmode = true;
+	if (plane != OMAP_DSS_WB) {
+		if (ilace && height == out_height)
+			fieldmode = true;
 
-	if (ilace) {
-		if (fieldmode)
-			in_height /= 2;
-		pos_y /= 2;
-		out_height /= 2;
+		if (ilace) {
+			if (fieldmode)
+				in_height /= 2;
+			pos_y /= 2;
+			out_height /= 2;
 
-		DSSDBG("adjusting for ilace: height %d, pos_y %d, "
-			"out_height %d\n", in_height, pos_y,
-			out_height);
+			DSSDBG("adjusting for ilace: height %d, pos_y %d, "
+				"out_height %d\n", in_height, pos_y,
+				out_height);
+		}
 	}
 
 	if (!dss_feat_color_mode_supported(plane, fourcc))
@@ -2690,6 +2692,9 @@ static int dispc_wb_setup(const struct omap_dss_writeback_info *wi,
 	enum omap_overlay_caps caps =
 		OMAP_DSS_OVL_CAP_SCALE | OMAP_DSS_OVL_CAP_PRE_MULT_ALPHA;
 
+	if (vm->flags & DISPLAY_FLAGS_INTERLACED)
+		in_height /= 2;
+
 	DSSDBG("dispc_wb_setup, pa %x, pa_uv %x, %d,%d -> %dx%d, cmode %x, "
 		"rot %d\n", wi->paddr, wi->p_uv_addr, in_width,
 		in_height, wi->width, wi->height, wi->fourcc, wi->rotation);
@@ -2734,14 +2739,18 @@ static int dispc_wb_setup(const struct omap_dss_writeback_info *wi,
 		/* WBDELAYCOUNT */
 		REG_FLD_MOD(DISPC_OVL_ATTRIBUTES2(plane), 0, 7, 0);
 	} else {
-		int wbdelay;
+		u32 wbdelay;
 
 		if (channel_in == DSS_WB_TV_MGR)
-			wbdelay = min(vm->vsync_len + vm->vback_porch,
-				(u32)255);
+			wbdelay = vm->vsync_len + vm->vback_porch;
 		else
-			wbdelay = min(vm->vfront_porch +
-				vm->vsync_len + vm->vback_porch, (u32)255);
+			wbdelay = vm->vfront_porch + vm->vsync_len +
+				vm->vback_porch;
+
+		if (vm->flags & DISPLAY_FLAGS_INTERLACED)
+			wbdelay /= 2;
+
+		wbdelay = min(wbdelay, 255u);
 
 		/* WBDELAYCOUNT */
 		REG_FLD_MOD(DISPC_OVL_ATTRIBUTES2(plane), wbdelay, 7, 0);
@@ -4019,6 +4028,17 @@ static void dispc_get_min_max_size(u32 *min_w, u32 *min_h, u32 *max_w, u32 *max_
 	*max_h = dispc.feat->mgr_height_max;
 }
 
+static u32 dispc_get_memory_bandwidth_limit(void)
+{
+	u32 limit = 0;
+
+	/* Optional maximum memory bandwidth */
+	of_property_read_u32(dispc.pdev->dev.of_node, "max-memory-bandwidth",
+			     &limit);
+
+	return limit;
+}
+
 /*
  * Workaround for errata i734 in DSS dispc
  *  - LCD1 Gamma Correction Is Not Working When GFX Pipe Is Disabled
@@ -4191,6 +4211,7 @@ static const struct dispc_ops dispc_ops = {
 	.get_num_ovls = dispc_get_num_ovls,
 	.get_num_mgrs = dispc_get_num_mgrs,
 	.get_min_max_size = dispc_get_min_max_size,
+	.get_memory_bandwidth_limit = dispc_get_memory_bandwidth_limit,
 
 	.mgr_enable = dispc_mgr_enable,
 	.mgr_is_enabled = dispc_mgr_is_enabled,
