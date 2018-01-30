@@ -528,7 +528,8 @@ dtb-$(CONFIG_SOC_DRA7XX) += \
 	dra7-evm-late-attach.dtb \
 	dra72-evm-late-attach.dtb \
 	dra71-evm-late-attach.dtb \
-	dra76-evm-late-attach.dtb
+	dra76-evm-late-attach.dtb \
+	dra76-evm-tfp410.dtb
 dtb-$(CONFIG_ARCH_ORION5X) += \
 	orion5x-lacie-d2-network.dtb \
 	orion5x-lacie-ethernet-disk-mini-v2.dtb \
